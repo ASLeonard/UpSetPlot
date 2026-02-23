@@ -1,5 +1,4 @@
 import typing
-import warnings
 
 import matplotlib
 import numpy as np
@@ -9,14 +8,6 @@ from matplotlib import pyplot as plt
 
 from . import util
 from .reformat import _get_subset_mask, query
-
-# prevents ImportError on matplotlib versions >3.5.2
-try:
-    from matplotlib.tight_layout import get_renderer
-
-    RENDERER_IMPORTED = True
-except ImportError:
-    RENDERER_IMPORTED = False
 
 
 def _process_data(
@@ -518,7 +509,7 @@ class UpSet:
             data = gb[sum_over].sum()
         data = data.unstack(by).fillna(0)
         if isinstance(colors, str):
-            colors = matplotlib.cm.get_cmap(colors)
+            colors = matplotlib.colormaps.get_cmap(colors)
         elif isinstance(colors, typing.Mapping):
             colors = data.columns.map(colors).values
             if pd.isna(colors).any():
@@ -532,7 +523,7 @@ class UpSet:
         handles, labels = ax.get_legend_handles_labels()
         if self._horizontal:
             # Make legend order match visual stack order
-            ax.legend(reversed(handles), reversed(labels))
+            ax.legend(list(reversed(handles)), list(reversed(labels)))
         else:
             ax.legend()
 
@@ -685,20 +676,10 @@ class UpSet:
             "\n".join(str(label) + "x" for label in self.totals.index.values),
             **text_kw,
         )
-        window_extent_args = {}
-        if RENDERER_IMPORTED:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", DeprecationWarning)
-                window_extent_args["renderer"] = get_renderer(fig)
-        textw = t.get_window_extent(**window_extent_args).width
+        textw = t.get_window_extent().width
         t.remove()
 
-        window_extent_args = {}
-        if RENDERER_IMPORTED:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", DeprecationWarning)
-                window_extent_args["renderer"] = get_renderer(fig)
-        figw = self._reorient(fig.get_window_extent(**window_extent_args)).width
+        figw = self._reorient(fig.get_window_extent()).width
 
         sizes = np.asarray([p["elements"] for p in self._subset_plots])
         fig = self._reorient(fig)
@@ -792,10 +773,14 @@ class UpSet:
                 }
             )
         )
-        styles["linewidth"].fillna(1, inplace=True)
-        styles["facecolor"].fillna(self._facecolor, inplace=True)
-        styles["edgecolor"].fillna(styles["facecolor"], inplace=True)
-        styles["linestyle"].fillna("solid", inplace=True)
+        styles.fillna({
+            "linewidth": 1,
+            "facecolor": self._facecolor,
+            "edgecolor": styles["facecolor"],
+            "linestyle": "solid"
+            },
+            inplace=True
+        )
         del styles["hatch"]  # not supported in matrix (currently)
 
         x = np.repeat(np.arange(len(data)), n_cats)
@@ -905,8 +890,8 @@ class UpSet:
             for rect in rects:
                 width = rect.get_width() + rect.get_x()
                 ax.text(
-                    width + margin,
-                    rect.get_y() + rect.get_height() * 0.5,
+                    float(np.ravel(width + margin)[0]),
+                    float(np.ravel(rect.get_y() + rect.get_height() * 0.5)[0]),
                     fmt.format(*make_args(width)),
                     ha="left",
                     va="center",
@@ -916,8 +901,8 @@ class UpSet:
             for rect in rects:
                 width = rect.get_width() + rect.get_x()
                 ax.text(
-                    width + margin,
-                    rect.get_y() + rect.get_height() * 0.5,
+                    float(np.ravel(width + margin)[0]),
+                    float(np.ravel(rect.get_y() + rect.get_height() * 0.5)[0]),
                     fmt.format(*make_args(width)),
                     ha="right",
                     va="center",
@@ -927,8 +912,8 @@ class UpSet:
             for rect in rects:
                 height = rect.get_height() + rect.get_y()
                 ax.text(
-                    rect.get_x() + rect.get_width() * 0.5,
-                    height + margin,
+                    float(np.ravel(rect.get_x() + rect.get_width() * 0.5)[0]),
+                    float(np.ravel(height + margin)[0]),
                     fmt.format(*make_args(height)),
                     ha="center",
                     va="bottom",

@@ -24,7 +24,7 @@ def setup_package():
             license="BSD-3-Clause",
             extras_require={"testing": ["pytest>=2.7", "pytest-cov<2.6"]},
             # TODO: check versions
-            install_requires=["pandas>=0.23", "matplotlib>=2.0"],
+            install_requires=["pandas>=3.0", "matplotlib>3.8"],
         )
     finally:
         del sys.path[0]
