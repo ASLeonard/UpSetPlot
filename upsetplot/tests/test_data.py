@@ -231,5 +231,3 @@ def test_from_indicators_equivalence(indicators, data):
     assert_frame_equal(
         from_indicators(indicators, data), from_memberships([[], ["cat1"], []], data)
     )
-
-

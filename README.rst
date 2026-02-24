@@ -128,7 +128,7 @@ To install the library, you can use `pip`::
 Installation requires:
 
 * pandas
-* matplotlib >= 2.0
+* matplotlib > 3.8
 * seaborn to use `UpSet.add_catplot`
 
 It should then be possible to::

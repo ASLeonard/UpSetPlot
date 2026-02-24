@@ -153,7 +153,7 @@ def from_indicators(indicators, data=None):
                        val1    val2   val3
     val1  val2  val3
     True  False True   <NA>    male   <NA>
-    False True  True    0.7    <NA>   <NA>
+    False True  True    0.7     NaN   <NA>
     True  False False  <NA>  female  23000
     False False False   0.9  female  78000
     """
@@ -162,7 +162,7 @@ def from_indicators(indicators, data=None):
 
     if callable(indicators):
         if data is None:
-            raise ValueError("data must be provided when indicators is " "callable")
+            raise ValueError("data must be provided when indicators is callable")
         indicators = indicators(data)
 
     try:
@@ -366,6 +366,7 @@ def from_contents(contents, data=None, id_column="id"):
     if id_column in df.columns:
         raise ValueError(f"A category cannot be named {id_column!r}")
     df.fillna(False, inplace=True)
+    df = df.astype(bool)
     cat_names = list(df.columns)
 
     if data is not None:
@@ -379,7 +380,7 @@ def from_contents(contents, data=None, id_column="id"):
                 "Found identifiers in contents that are not in "
                 "data: %r" % not_in_data.index.values
             )
-        df = df.reindex(index=data.index).fillna(False)
+        df = df.reindex(index=data.index).fillna(False).astype(bool)
         df = pd.concat([data, df], axis=1, sort=False)
     df.index.name = id_column
     return df.reset_index().set_index(cat_names)

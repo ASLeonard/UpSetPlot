@@ -840,13 +840,10 @@ class UpSet:
                 }
             )
         )
-        styles.fillna({
-            "linewidth": 1,
-            "facecolor": self._facecolor,
-            "edgecolor": styles["facecolor"],
-            "linestyle": "solid"
-            },
-            inplace=True
+        styles["facecolor"] = styles["facecolor"].fillna(self._facecolor)
+        styles.fillna(
+            {"linewidth": 1, "edgecolor": styles["facecolor"], "linestyle": "solid"},
+            inplace=True,
         )
         del styles["hatch"]  # not supported in matrix (currently)
 
