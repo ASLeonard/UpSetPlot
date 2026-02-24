@@ -1,6 +1,47 @@
+[build-system]
+requires = ["setuptools>80"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "UpSetPlot"
+version = "0.10dev1"
+description = "Draw Lex et al.'s UpSet plots with Pandas and Matplotlib"
+readme = "README.rst"
+license = "BSD-3-Clause"
+authors = [
+    {name = "Joel Nothman", email = "joel.nothman@gmail.com"},
+]
+requires-python = ">=3.12"
+dependencies = [
+    "pandas>=3.0",
+    "matplotlib>3.8",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering :: Visualization",
+    "Intended Audience :: Science/Research",
+]
+
+[project.urls]
+Homepage = "https://upsetplot.readthedocs.io"
+
+[project.optional-dependencies]
+testing = ["pytest>=9.0", "pytest-cov"]
+
+[tool.setuptools.packages.find]
+include = ["upsetplot*"]
+
+[tool.pytest.ini_options]
+addopts = "--doctest-modules --verbose --cov=upsetplot --showlocals"
+testpaths = ["upsetplot", "README.rst"]
+doctest_optionflags = ["ALLOW_UNICODE", "NORMALIZE_WHITESPACE", "ELLIPSIS"]
+
 [tool.ruff]
 extend-include = ["*.ipynb"]
-target-version = "py38"
+target-version = "py312"
 
 [tool.ruff.lint]
 # see https://docs.astral.sh/ruff/rules/
