@@ -1,4 +1,3 @@
-import warnings
 from numbers import Number
 
 import numpy as np
@@ -35,11 +34,11 @@ def generate_samples(seed=0, n_samples=10000, n_categories=3):
     df = pd.DataFrame({"value": np.zeros(n_samples)})
     for i in range(n_categories):
         r = rng.rand(n_samples)
-        df["cat%d" % i] = r > rng.rand()
+        df[f"cat{i}"] = r > rng.rand()
         df["value"] += r
 
     df.reset_index(inplace=True)
-    df.set_index(["cat%d" % i for i in range(n_categories)], inplace=True)
+    df.set_index([f"cat{i}" for i in range(n_categories)], inplace=True)
     return df
 
 
@@ -67,21 +66,6 @@ def generate_counts(seed=0, n_samples=10000, n_categories=3):
     """
     df = generate_samples(seed=seed, n_samples=n_samples, n_categories=n_categories)
     return df.value.groupby(level=list(range(n_categories))).count()
-
-
-def generate_data(seed=0, n_samples=10000, n_sets=3, aggregated=False):
-    warnings.warn(
-        "generate_data was replaced by generate_counts in version "
-        "0.3 and will be removed in version 0.4.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    if aggregated:
-        return generate_counts(seed=seed, n_samples=n_samples, n_categories=n_sets)
-    else:
-        return generate_samples(seed=seed, n_samples=n_samples, n_categories=n_sets)[
-            "value"
-        ]
 
 
 def from_indicators(indicators, data=None):
@@ -309,9 +293,8 @@ def from_memberships(memberships, data=None):
     data = _convert_to_pandas(data)
     if len(data) != len(df):
         raise ValueError(
-            "memberships and data must have the same length. "
-            "Got len(memberships) == %d, len(data) == %d"
-            % (len(memberships), len(data))
+            f"memberships and data must have the same length. "
+            f"Got len(memberships) == {len(memberships)}, len(data) == {len(data)}"
         )
     data.index = df.index
     return data
@@ -381,7 +364,7 @@ def from_contents(contents, data=None, id_column="id"):
 
     df = pd.concat(cat_series, axis=1, sort=False)
     if id_column in df.columns:
-        raise ValueError("A category cannot be named %r" % id_column)
+        raise ValueError(f"A category cannot be named {id_column!r}")
     df.fillna(False, inplace=True)
     cat_names = list(df.columns)
 
@@ -389,7 +372,7 @@ def from_contents(contents, data=None, id_column="id"):
         if set(df.columns).intersection(data.columns):
             raise ValueError("Data columns overlap with category names")
         if id_column in data.columns:
-            raise ValueError("data cannot contain a column named %r" % id_column)
+            raise ValueError(f"data cannot contain a column named {id_column!r}")
         not_in_data = df.drop(data.index, axis=0, errors="ignore")
         if len(not_in_data):
             raise ValueError(
