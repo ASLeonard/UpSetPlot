@@ -26,11 +26,10 @@ def _aggregate_data(df, subset_size, sum_over):
 
         if subset_size == "auto" and not df.index.is_unique:
             raise ValueError(
-                'subset_size="auto" cannot be used for a '
-                "Series with non-unique groups."
+                'subset_size="auto" cannot be used for a Series with non-unique groups.'
             )
         if sum_over is not None:
-            raise ValueError("sum_over is not applicable when the input is a " "Series")
+            raise ValueError("sum_over is not applicable when the input is a Series")
         sum_over = False if subset_size == "count" else "_value"
     else:
         # DataFrame
@@ -41,7 +40,7 @@ def _aggregate_data(df, subset_size, sum_over):
         elif subset_size == "count":
             if sum_over is not None:
                 raise ValueError(
-                    "sum_over cannot be set if subset_size=%r" % subset_size
+                    f"sum_over cannot be set if subset_size={subset_size!r}"
                 )
             sum_over = False
         elif subset_size == "sum" and sum_over is None:
@@ -58,7 +57,7 @@ def _aggregate_data(df, subset_size, sum_over):
     elif hasattr(sum_over, "lower"):
         aggregated = gb[sum_over].sum()
     else:
-        raise ValueError("Unsupported value for sum_over: %r" % sum_over)
+        raise ValueError(f"Unsupported value for sum_over: {sum_over!r}")
 
     if aggregated.name == "_value":
         aggregated.name = input_name
@@ -69,20 +68,14 @@ def _aggregate_data(df, subset_size, sum_over):
 def _check_index(df):
     # check all indices are boolean
     if not all({True, False} >= set(level) for level in df.index.levels):
-        raise ValueError(
-            "The DataFrame has values in its index that are not " "boolean"
-        )
+        raise ValueError("The DataFrame has values in its index that are not boolean")
     df = df.copy(deep=False)
     # XXX: this may break if input is not MultiIndex
     kw = {
         "levels": [x.astype(bool) for x in df.index.levels],
         "names": df.index.names,
     }
-    if hasattr(df.index, "codes"):
-        # compat for pandas <= 0.20
-        kw["codes"] = df.index.codes
-    else:
-        kw["labels"] = df.index.labels
+    kw["codes"] = df.index.codes
     df.index = pd.MultiIndex(**kw)
     return df
 
@@ -203,8 +196,8 @@ class QueryResult:
 
     def __repr__(self):
         return (
-            "QueryResult(data={data}, subset_sizes={subset_sizes}, "
-            "category_totals={category_totals}, total={total}".format(**vars(self))
+            f"QueryResult(data={self.data}, subset_sizes={self.subset_sizes}, "
+            f"category_totals={self.category_totals}, total={self.total}"
         )
 
     @property
@@ -413,7 +406,7 @@ def query(
     elif sort_categories_by in (None, "input"):
         pass
     else:
-        raise ValueError("Unknown sort_categories_by: %r" % sort_categories_by)
+        raise ValueError(f"Unknown sort_categories_by: {sort_categories_by!r}")
     data = data.reorder_levels(category_totals.index.values)
     agg = agg.reorder_levels(category_totals.index.values)
 
@@ -433,7 +426,7 @@ def query(
     elif sort_by in (None, "input"):
         pass
     else:
-        raise ValueError("Unknown sort_by: %r" % sort_by)
+        raise ValueError(f"Unknown sort_by: {sort_by!r}")
 
     return QueryResult(
         data=data, subset_sizes=agg, category_totals=category_totals, total=grand_total

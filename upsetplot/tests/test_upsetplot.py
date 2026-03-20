@@ -165,14 +165,13 @@ def test_process_data_frame(x, sort_by, sort_categories_by):
 
     X = pd.DataFrame({"a": x})
 
-    with pytest.warns(None):
-        total, df, intersections, totals = _process_data(
-            X,
-            sort_by=sort_by,
-            sort_categories_by=sort_categories_by,
-            sum_over="a",
-            subset_size="auto",
-        )
+    total, df, intersections, totals = _process_data(
+        X,
+        sort_by=sort_by,
+        sort_categories_by=sort_categories_by,
+        sum_over="a",
+        subset_size="auto",
+    )
     assert df is not X
     assert total == pytest.approx(intersections.sum())
 

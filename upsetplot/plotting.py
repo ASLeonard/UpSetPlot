@@ -1,5 +1,4 @@
 import typing
-import warnings
 
 import matplotlib
 import numpy as np
@@ -9,14 +8,6 @@ from matplotlib import pyplot as plt
 
 from . import util
 from .reformat import _get_subset_mask, query
-
-# prevents ImportError on matplotlib versions >3.5.2
-try:
-    from matplotlib.tight_layout import get_renderer
-
-    RENDERER_IMPORTED = True
-except ImportError:
-    RENDERER_IMPORTED = False
 
 
 def _process_data(
@@ -507,7 +498,8 @@ class UpSet:
         ax.set_ylabel(title)
         return all_rects
 
-    def _plot_stacked_bars(self, ax, by, sum_over, colors, title):
+    def _resolve_bar_data_and_colors(self, by, sum_over, colors):
+        """Aggregate data and resolve colors for stacked/grouped bar plots."""
         df = self._df.set_index("_bin").set_index(by, append=True, drop=False)
         gb = df.groupby(level=list(range(df.index.nlevels)), sort=True)
         if sum_over is None and "_value" in df.columns:
@@ -518,26 +510,78 @@ class UpSet:
             data = gb[sum_over].sum()
         data = data.unstack(by).fillna(0)
         if isinstance(colors, str):
-            colors = matplotlib.cm.get_cmap(colors)
+            colors = matplotlib.colormaps.get_cmap(colors)
         elif isinstance(colors, typing.Mapping):
             colors = data.columns.map(colors).values
             if pd.isna(colors).any():
                 raise KeyError(
-                    "Some labels mapped by colors: %r"
-                    % data.columns[pd.isna(colors)].tolist()
+                    f"Some labels mapped by colors: {data.columns[pd.isna(colors)].tolist()!r}"
                 )
+        return data, colors
 
-        self._plot_bars(ax, data=data, colors=colors, title=title, use_labels=True)
+    def _plot_stacked_bars(self, ax, by, sum_over, colors, title, kind="stacked"):
+        data, colors = self._resolve_bar_data_and_colors(by, sum_over, colors)
+        if kind == "grouped":
+            self._plot_grouped_bars(ax, data=data, colors=colors, title=title)
+        else:
+            self._plot_bars(ax, data=data, colors=colors, title=title, use_labels=True)
+            handles, labels = ax.get_legend_handles_labels()
+            if self._horizontal:
+                # Make legend order match visual stack order
+                ax.legend(list(reversed(handles)), list(reversed(labels)))
+            else:
+                ax.legend()
+
+    def _plot_grouped_bars(self, ax, data, colors, title):
+        """Render a grouped (side-by-side) bar chart into ax."""
+        ax = self._reorient(ax)
+        ax.set_autoscalex_on(False)
+
+        n_groups = data.shape[1]
+        bar_width = 0.5 / n_groups
+
+        if callable(colors):
+            resolved = list(colors(n_groups))
+        elif isinstance(colors, (str, type(None))):
+            resolved = [colors] * n_groups
+        else:
+            resolved = list(colors)
+
+        x = np.arange(len(data))
+        all_rects = []
+        for i, (name, y) in enumerate(data.items()):
+            offset = (i - (n_groups - 1) / 2) * bar_width
+            rects = ax.bar(
+                x + offset,
+                y,
+                bar_width * 0.9,
+                color=resolved[i],
+                zorder=10,
+                label=name,
+                align="center",
+            )
+            all_rects.extend(rects)
+
+        ax.xaxis.set_visible(False)
+        for spine in ["top", "bottom", "right"]:
+            ax.spines[self._reorient(spine)].set_visible(False)
+        ax.yaxis.grid(True)
+        ax.set_ylabel(title)
 
         handles, labels = ax.get_legend_handles_labels()
-        if self._horizontal:
-            # Make legend order match visual stack order
-            ax.legend(reversed(handles), reversed(labels))
-        else:
-            ax.legend()
+        ax.legend(handles, labels)
+        return all_rects
 
-    def add_stacked_bars(self, by, sum_over=None, colors=None, elements=3, title=None):
-        """Add a stacked bar chart over subsets when :func:`plot` is called.
+    def add_stacked_bars(
+        self,
+        by,
+        sum_over=None,
+        colors=None,
+        elements=3,
+        title=None,
+        kind="stacked",
+    ):
+        """Add a bar chart over subsets when :func:`plot` is called.
 
         Used to plot categorical variable distributions within each subset.
 
@@ -546,7 +590,7 @@ class UpSet:
         Parameters
         ----------
         by : str
-            Column name within the dataframe for color coding the stacked bars,
+            Column name within the dataframe for color coding the bars,
             containing discrete or categorical values.
         sum_over : str, optional
             Ordinarily the bars will chart the size of each group. sum_over
@@ -572,11 +616,22 @@ class UpSet:
             Size of the axes counted in number of matrix elements.
         title : str, optional
             The axis title labelling bar length.
+        kind : {'stacked', 'grouped'}, default='stacked'
+            How to render the bars:
+
+            'stacked'
+                Each category is drawn as a segment on top of the previous
+                one, so bar height equals the total count/sum.
+            'grouped'
+                Each category is drawn as a separate bar placed
+                side-by-side within the subset column.
 
         Returns
         -------
         None
         """
+        if kind not in ("stacked", "grouped"):
+            raise ValueError(f"kind must be 'stacked' or 'grouped', got {kind!r}")
         # TODO: allow sort_by = {"lexical", "sum_squares", "rev_sum_squares",
         #                        list of labels}
         self._subset_plots.append(
@@ -586,7 +641,8 @@ class UpSet:
                 "sum_over": sum_over,
                 "colors": colors,
                 "title": title,
-                "id": "extra%d" % len(self._subset_plots),
+                "kind": kind,
+                "id": f"extra{len(self._subset_plots)}",
                 "elements": elements,
             }
         )
@@ -613,21 +669,23 @@ class UpSet:
         -------
         None
         """
-        assert not set(kw.keys()) & {"ax", "data", "x", "y", "orient"}
+        prohibited = set(kw.keys()) & {"ax", "data", "x", "y", "orient"}
+        if prohibited:
+            raise ValueError(f"Prohibited keys in kw: {prohibited!r}")
         if value is None:
             if "_value" not in self._df.columns:
                 raise ValueError(
-                    "value cannot be set if data is a Series. " "Got %r" % value
+                    f"value cannot be set if data is a Series. Got {value!r}"
                 )
         else:
             if value not in self._df.columns:
-                raise ValueError("value %r is not a column in data" % value)
+                raise ValueError(f"value {value!r} is not a column in data")
         self._subset_plots.append(
             {
                 "type": "catplot",
                 "value": value,
                 "kind": kind,
-                "id": "extra%d" % len(self._subset_plots),
+                "id": f"extra{len(self._subset_plots)}",
                 "elements": elements,
                 "kw": kw,
             }
@@ -685,20 +743,10 @@ class UpSet:
             "\n".join(str(label) + "x" for label in self.totals.index.values),
             **text_kw,
         )
-        window_extent_args = {}
-        if RENDERER_IMPORTED:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", DeprecationWarning)
-                window_extent_args["renderer"] = get_renderer(fig)
-        textw = t.get_window_extent(**window_extent_args).width
+        textw = t.get_window_extent().width
         t.remove()
 
-        window_extent_args = {}
-        if RENDERER_IMPORTED:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", DeprecationWarning)
-                window_extent_args["renderer"] = get_renderer(fig)
-        figw = self._reorient(fig.get_window_extent(**window_extent_args)).width
+        figw = self._reorient(fig.get_window_extent()).width
 
         sizes = np.asarray([p["elements"] for p in self._subset_plots])
         fig = self._reorient(fig)
@@ -792,10 +840,11 @@ class UpSet:
                 }
             )
         )
-        styles["linewidth"].fillna(1, inplace=True)
-        styles["facecolor"].fillna(self._facecolor, inplace=True)
-        styles["edgecolor"].fillna(styles["facecolor"], inplace=True)
-        styles["linestyle"].fillna("solid", inplace=True)
+        styles["facecolor"] = styles["facecolor"].fillna(self._facecolor)
+        styles.fillna(
+            {"linewidth": 1, "edgecolor": styles["facecolor"], "linestyle": "solid"},
+            inplace=True,
+        )
         del styles["hatch"]  # not supported in matrix (currently)
 
         x = np.repeat(np.arange(len(data)), n_cats)
@@ -905,8 +954,8 @@ class UpSet:
             for rect in rects:
                 width = rect.get_width() + rect.get_x()
                 ax.text(
-                    width + margin,
-                    rect.get_y() + rect.get_height() * 0.5,
+                    float(np.ravel(width + margin)[0]),
+                    float(np.ravel(rect.get_y() + rect.get_height() * 0.5)[0]),
                     fmt.format(*make_args(width)),
                     ha="left",
                     va="center",
@@ -916,8 +965,8 @@ class UpSet:
             for rect in rects:
                 width = rect.get_width() + rect.get_x()
                 ax.text(
-                    width + margin,
-                    rect.get_y() + rect.get_height() * 0.5,
+                    float(np.ravel(width + margin)[0]),
+                    float(np.ravel(rect.get_y() + rect.get_height() * 0.5)[0]),
                     fmt.format(*make_args(width)),
                     ha="right",
                     va="center",
@@ -927,8 +976,8 @@ class UpSet:
             for rect in rects:
                 height = rect.get_height() + rect.get_y()
                 ax.text(
-                    rect.get_x() + rect.get_width() * 0.5,
-                    height + margin,
+                    float(np.ravel(rect.get_x() + rect.get_width() * 0.5)[0]),
+                    float(np.ravel(height + margin)[0]),
                     fmt.format(*make_args(height)),
                     ha="center",
                     va="bottom",
@@ -1116,7 +1165,7 @@ class UpSet:
                 del kw["id"]
                 self.PLOT_TYPES[plot["type"]](self, ax, **kw)
             else:
-                raise ValueError("Unknown subset plot type: %r" % plot["type"])
+                raise ValueError(f"Unknown subset plot type: {plot['type']!r}")
             out[plot["id"]] = ax
 
         self._reorient(fig).align_ylabels(
